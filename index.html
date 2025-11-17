@@ -276,8 +276,25 @@
             font-weight: 600; margin-bottom: 8px; display: block;
         }
 
+        /* Melhorias para Anki */
+        .anki-session-stats {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 16px; padding: 12px; background: var(--bg-light);
+            border-radius: 8px; font-size: 14px;
+        }
+        .anki-card-content {
+            min-height: 200px; display: flex; align-items: center; justify-content: center;
+            text-align: center; padding: 20px; font-size: 18px; line-height: 1.6;
+        }
+        .anki-divider {
+            border-top: 2px solid var(--border-gray); margin: 20px 0;
+        }
+
         @media (max-width: 768px) {
             .top-bar { flex-direction: column; gap: 12px; }
+            .menu-bar { padding: 0 12px; }
+            .menu-btn { padding: 12px 16px; font-size: 14px; }
+            .focus-timer-display { font-size: 48px; }
         }
     </style>
 </head>
@@ -330,7 +347,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Código de Convite</label>
-                    <input type="text" id="registerInviteCode" class="form-input" required>
+                    <input type="password" id="registerInviteCode" class="form-input" required placeholder="Digite o código de convite">
                 </div>
                 <button type="submit" class="btn btn-primary">Registrar</button>
             </form>
@@ -353,9 +370,9 @@
                 <div class="timer-display">
                     <div class="timer-value" id="timerDisplay">⏱️ 0h 0m</div>
                     <div class="timer-controls">
-                        <button class="timer-btn" id="playBtn" title="Iniciar">Iniciar</button>
-                        <button class="timer-btn" id="pauseBtn" title="Pausar">Pausar</button>
-                        <button class="timer-btn" id="resetBtn" title="Zerar Tempo Total" style="color: var(--warning-yellow);">Zerar</button>
+                        <button class="timer-btn" id="playBtn" title="Iniciar">▶️</button>
+                        <button class="timer-btn" id="pauseBtn" title="Pausar">⏸️</button>
+                        <button class="timer-btn" id="resetBtn" title="Zerar Tempo Total" style="color: var(--warning-yellow);">🔄</button>
                     </div>
                 </div>
 
@@ -369,21 +386,22 @@
         </div>
 
         <div class="menu-bar">
-            <button class="menu-btn active" data-page="dashboard">Plano de Hoje</button>
-            <button class="menu-btn" data-page="plano">Plano Semanal</button>
+            <button class="menu-btn active" data-page="dashboard">📊 Plano de Hoje</button>
+            <button class="menu-btn" data-page="plano">📅 Plano Semanal</button>
             <button class="menu-btn" data-page="concurso">🎯 Meu Concurso</button>
-            <button class="menu-btn" data-page="desempenho">📊 Lançar Desempenho</button>
+            <button class="menu-btn" data-page="desempenho">📈 Lançar Desempenho</button>
             <button class="menu-btn" data-page="anki">⚡ Revisão Anki</button>
             <button class="menu-btn" data-page="adicionar">➕ Adicionar Anki</button>
             <button class="menu-btn" data-page="erros" style="color: var(--error-red);">📓 Caderno de Erros</button>
             <button class="menu-btn" data-page="adicionarErro" style="color: var(--error-red);">➕ Adicionar Erro</button>
-            <button class="menu-btn" data-page="perfil">Perfil</button>
-            <button class="menu-btn" data-page="suporte">Suporte</button>
-            <button class="menu-btn" id="logoutBtn" style="margin-left: auto; color: var(--error-red);">Sair</button>
+            <button class="menu-btn" data-page="perfil">👤 Perfil</button>
+            <button class="menu-btn" data-page="suporte">❓ Suporte</button>
+            <button class="menu-btn" id="logoutBtn" style="margin-left: auto; color: var(--error-red);">🚪 Sair</button>
         </div>
 
         <div class="main-content">
             
+            <!-- Dashboard Page -->
             <div id="dashboardPage" class="page">
                 <h2 class="page-title">🎯 Seu Plano de Foco para Hoje</h2>
                 <div id="dailyFocusContainer">
@@ -393,6 +411,7 @@
                 </div>
             </div>
 
+            <!-- Concurso Page -->
             <div id="concursoPage" class="page hidden">
                 <h2 class="page-title">🎯 Meu Concurso</h2>
                 <div class="card">
@@ -407,6 +426,7 @@
                         </select>
                     </div>
                     <div id="currentExamInfo" style="margin-top: 12px; color: var(--text-gray);">Nenhum concurso selecionado</div>
+                    <div id="examStructureContainer" style="margin-top: 16px;"></div>
                 </div>
                 
                 <div class="card">
@@ -452,11 +472,11 @@
                         Clique abaixo para (re)gerar seu "Plano Semanal" automático com base no seu desempenho e horas.
                     </p>
                     <button class="btn btn-primary" id="generateCycleBtn">🚀 Gerar / Atualizar Ciclo Automático</button>
-                    <div id="cyclePrediction" style="font-weight: 600; color: var(--primary-blue); margin-top: 16px; font-size: 18px;">
-                        </div>
+                    <div id="cyclePrediction" style="font-weight: 600; color: var(--primary-blue); margin-top: 16px; font-size: 18px;"></div>
                 </div>
             </div>
 
+            <!-- Desempenho Page -->
             <div id="desempenhoPage" class="page hidden">
                 <h2 class="page-title">📊 Lançar Desempenho</h2>
                 <div class="card">
@@ -491,9 +511,7 @@
                 </div>
             </div>
 
-            <div id="ankiPage" class="page hidden">
-                </div>
-            
+            <!-- Anki Session Page -->
             <div id="ankiSessionPage" class="page hidden">
                 <div class="card">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -507,18 +525,18 @@
                 
                 <div id="ankiFrontView" class="card">
                     <div style="font-size: 13px; color: var(--text-gray); margin-bottom: 8px;">FRENTE (A Dúvida/Erro)</div>
-                    <div id="ankiCardFront" style="font-size: 18px; line-height: 1.8; min-height: 100px; white-space: pre-wrap;"></div>
-                    <div style="border-top: 2px solid var(--border-gray); margin: 20px 0;"></div>
+                    <div id="ankiCardFront" class="anki-card-content"></div>
+                    <div class="anki-divider"></div>
                     <button class="btn btn-primary" id="showAnkiBackBtn" style="width: 100%;">Mostrar Resposta</button>
                 </div>
 
                 <div id="ankiBackView" class="card hidden">
                     <div style="font-size: 13px; color: var(--text-gray); margin-bottom: 8px;">FRENTE</div>
-                    <div id="ankiCardFront_Back" style="font-size: 16px; line-height: 1.7; opacity: 0.7; white-space: pre-wrap;"></div>
-                    <div style="border-top: 2px solid var(--border-gray); margin: 20px 0;"></div>
+                    <div id="ankiCardFront_Back" style="font-size: 16px; line-height: 1.7; opacity: 0.7; white-space: pre-wrap; background: var(--bg-light); padding: 12px; border-radius: 6px;"></div>
+                    <div class="anki-divider"></div>
                     <div style="font-size: 13px; color: var(--text-gray); margin-bottom: 8px;">VERSO (A Resposta)</div>
-                    <div id="ankiCardBack" style="font-size: 18px; line-height: 1.8; min-height: 100px; background: var(--bg-light); padding: 12px; border-radius: 6px; white-space: pre-wrap;"></div>
-                    <div style="border-top: 2px solid var(--border-gray); margin: 20px 0;"></div>
+                    <div id="ankiCardBack" class="anki-card-content" style="background: var(--bg-light);"></div>
+                    <div class="anki-divider"></div>
                     <div style="background: rgba(139, 92, 246, 0.1); padding: 16px; border-radius: 8px;">
                         <div style="font-weight: 600; margin-bottom: 8px;">Como foi sua resposta?</div>
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px;" id="ankiRatingButtons">
@@ -531,18 +549,18 @@
                 </div>
             </div>
 
+            <!-- Erros Page -->
             <div id="errosPage" class="page hidden">
                 <h2 class="page-title">📓 Meu Caderno de Erros</h2>
                 <div class="card">
                     <p style="font-size: 13px; color: var(--text-gray); margin-bottom: 16px;">
                         Aqui está uma lista de **todos** os erros que você registou manualmente para consulta.
                     </p>
-                    <div id="notebookContainer">
-                        </div>
+                    <div id="notebookContainer"></div>
                 </div>
             </div>
 
-
+            <!-- Adicionar Anki Page -->
             <div id="adicionarPage" class="page hidden">
                 <h2 class="page-title">➕ Adicionar Cartão Anki</h2>
                 <div class="card">
@@ -575,6 +593,7 @@
                 </div>
             </div>
             
+            <!-- Adicionar Erro Page -->
             <div id="adicionarErroPage" class="page hidden">
                 <h2 class="page-title" style="color: var(--error-red);">➕ Adicionar ao Caderno de Erros</h2>
                 <div class="card">
@@ -607,6 +626,7 @@
                 </div>
             </div>
 
+            <!-- Plano Page -->
             <div id="planoPage" class="page hidden">
                 <h2 class="page-title">📅 Plano Semanal (Automático)</h2>
                 <div class="card">
@@ -622,15 +642,15 @@
                                     <th>SEX</th> <th>SÁB</th> <th>DOM</th>
                                 </tr>
                             </thead>
-                            <tbody id="planTableBody">
-                                </tbody>
+                            <tbody id="planTableBody"></tbody>
                         </table>
                     </div>
                 </div>
             </div>
 
+            <!-- Perfil Page -->
             <div id="perfilPage" class="page hidden">
-                <h2 class="page-title">Perfil</h2>
+                <h2 class="page-title">👤 Perfil</h2>
                 <div class="card">
                     <h3>Informações do Usuário</h3>
                     <div style="margin-top: 16px;">
@@ -680,8 +700,9 @@
                 </div>
             </div>
 
+            <!-- Suporte Page -->
             <div id="suportePage" class="page hidden">
-                <h2 class="page-title">Suporte e FAQ</h2>
+                <h2 class="page-title">❓ Suporte e FAQ</h2>
                 <div class="card">
                     <h3>Como Usar (FAQ)</h3>
                     <div style="margin-top: 16px; line-height: 1.8;">
@@ -708,22 +729,10 @@
                 </div>
             </div>
 
-        </div> </div> <div id="subjectModal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-title">Adicionar Matéria ao Horário</div>
-            <div class="form-group">
-                <label class="form-label">Selecione a Matéria</label>
-                <select id="subjectSelectModal" class="form-input">
-                    <option value="">Selecione...</option>
-                </select>
-            </div>
-            <div style="display: flex; gap: 12px; margin-top: 16px;">
-                <button class="btn btn-primary" id="confirmSubjectBtn" style="flex: 1;">Confirmar</button>
-                <button class="btn btn-secondary" id="cancelSubjectBtn" style="flex: 1;">Cancelar</button>
-            </div>
         </div>
     </div>
-    
+
+    <!-- Modal de Foco -->
     <div id="focusModal" class="modal hidden">
         <div class="focus-modal-content">
             <div class="focus-modal-title" id="focusModalTitle">Tempo de Foco</div>
