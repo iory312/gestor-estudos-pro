@@ -1,17 +1,17 @@
 // ============================
 // APROVAÇÃO SEM LIMITES - GESTOR DE ESTUDOS
-// Versão Final (V9 - "Chave de Ouro")
+// Versão Final (V9.5 - Correção Anki Completa)
 // Arquitetura: Gestor de Estudo Reverso com Plano Automático
 // ============================
 
 // ============================
 // CONFIGURAÇÃO DE SEGURANÇA
 // ============================
-const MASTER_INVITE_CODE = 'APROVADO123';
+// Sistema de convite mais seguro - hash gerado externamente
 const MASTER_INVITE_HASH = '4c3a9c0ed83518edbd2515048e3df48ddeadfc47f3d681ae8121605250a98820';
-const DEFAULT_HOURS_PER_TOPIC = 1.5; // Horas estimadas para "zerar" um tópico (usado na previsão)
-const BLOCK_DURATION_MINUTES = 60; // Duração de cada bloco de estudo no plano automático
-const ANKI_BLOCK_DURATION_MINUTES = 30; // Duração do bloco Anki
+const DEFAULT_HOURS_PER_TOPIC = 1.5;
+const BLOCK_DURATION_MINUTES = 60;
+const ANKI_BLOCK_DURATION_MINUTES = 30;
 
 // ============================
 // BANCO DE DADOS DE CONCURSOS (V7 - Baseado no Edital PDF)
@@ -47,10 +47,10 @@ const examDatabase = {
 // ESTADO DA APLICAÇÃO (Memória)
 // ============================
 const memoryDB = { users: {}, currentUserId: null };
-let timerInterval = null; // Cronómetro Acumulador
+let timerInterval = null;
 let timerRunning = false;
-let focusTimerInterval = null; // Cronómetro Regressivo
-let currentAnkiSession = []; // Fila de cartões Anki
+let focusTimerInterval = null;
+let currentAnkiSession = [];
 let currentAnkiIndex = 0;
 
 // ============================
@@ -65,6 +65,7 @@ function saveStateToLocalStorage() {
         showToast('Erro: Não foi possível salvar seus dados.');
     }
 }
+
 function loadStateFromLocalStorage() {
     try {
         const storedUsers = localStorage.getItem('aprovaDB');
@@ -87,10 +88,12 @@ function loadStateFromLocalStorage() {
 // ============================
 function showLoading() { document.getElementById('loadingSpinner').classList.remove('hidden'); }
 function hideLoading() { document.getElementById('loadingSpinner').classList.add('hidden'); }
+
 function showToast(message, duration = 3000) {
     document.querySelectorAll('.toast').forEach(t => t.remove());
     const toast = document.createElement('div');
-    toast.className = 'toast'; toast.textContent = message;
+    toast.className = 'toast'; 
+    toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(() => { toast.remove(); }, duration);
 }
@@ -119,7 +122,7 @@ async function createUser(name, email, password) {
         dailyHours: { seg: 0, ter: 0, qua: 0, qui: 0, sex: 0, sab: 0, dom: 0 },
         performance: {},
         ankiCards: [],
-        errorNotebook: [], // NOVO (V9)
+        errorNotebook: [],
         studyPlan: {},
         timer: { accumulated: 0 },
         session: { currentPage: 'dashboard', lastTimerStartTime: null }
@@ -127,6 +130,7 @@ async function createUser(name, email, password) {
     memoryDB.users[userId] = user;
     return userId;
 }
+
 async function loginUser(email, password) {
     const passHashAttempt = await hashPassword(password);
     for (let userId in memoryDB.users) {
@@ -140,9 +144,11 @@ async function loginUser(email, password) {
     }
     return null;
 }
+
 function getCurrentUser() {
     return memoryDB.currentUserId ? memoryDB.users[memoryDB.currentUserId] : null;
 }
+
 function logoutUser() {
     const user = getCurrentUser();
     if (user) {
@@ -153,7 +159,7 @@ function logoutUser() {
     memoryDB.currentUserId = null;
     saveStateToLocalStorage();
 }
-// Inicializa propriedades faltantes em utilizadores antigos (importante para migração)
+
 function initializeUserProperties(user) {
     if (!user.performance) user.performance = {};
     if (!user.ankiCards) user.ankiCards = [];
@@ -161,7 +167,7 @@ function initializeUserProperties(user) {
     if (!user.dailyHours) user.dailyHours = { seg: 0, ter: 0, qua: 0, qui: 0, sex: 0, sab: 0, dom: 0 };
     if (!user.timer) user.timer = { accumulated: 0 };
     if (!user.session) user.session = { currentPage: 'dashboard', lastTimerStartTime: null };
-    if (!user.errorNotebook) user.errorNotebook = []; // NOVO (V9)
+    if (!user.errorNotebook) user.errorNotebook = [];
 }
 
 // ============================
@@ -179,6 +185,7 @@ function updateTimerDisplay() {
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     document.getElementById('timerDisplay').textContent = `⏱️ ${hours}h ${minutes}m`;
 }
+
 function startTimer() {
     const user = getCurrentUser();
     if (timerRunning || !user) return;
@@ -187,6 +194,7 @@ function startTimer() {
     timerInterval = setInterval(updateTimerDisplay, 1000);
     showToast('Cronómetro geral iniciado!');
 }
+
 function pauseTimer() {
     const user = getCurrentUser();
     if (!timerRunning || !user) return;
@@ -200,6 +208,7 @@ function pauseTimer() {
     updateTimerDisplay();
     showToast('Cronómetro geral pausado.');
 }
+
 function resetTimer() {
     const user = getCurrentUser();
     if (!user) return;
@@ -242,15 +251,25 @@ function startFocusSession(durationInMinutes, title, topicName) {
             focusTimerInterval = null;
             showToast("Bloco de foco concluído! 🎉");
             modal.classList.add('hidden');
+            
+            // Adicionar tempo ao cronómetro global
+            const user = getCurrentUser();
+            if (user) {
+                user.timer.accumulated += durationInMinutes * 60 * 1000;
+                saveStateToLocalStorage();
+                updateTimerDisplay();
+            }
         } else {
             totalSeconds--;
         }
     };
+
     pauseBtn.textContent = "Pausar";
     pauseBtn.onclick = () => {
         isPaused = !isPaused;
         pauseBtn.textContent = isPaused ? "Retomar" : "Pausar";
     };
+
     document.getElementById('focusStopBtn').onclick = () => {
         if (confirm("Deseja concluir este bloco de foco?")) {
             clearInterval(focusTimerInterval);
@@ -258,6 +277,7 @@ function startFocusSession(durationInMinutes, title, topicName) {
             modal.classList.add('hidden');
         }
     };
+
     updateFocusTimer();
     focusTimerInterval = setInterval(updateFocusTimer, 1000);
     modal.classList.remove('hidden');
@@ -270,33 +290,50 @@ function calculateAnkiReview(card, quality) {
     const now = new Date();
     if (!card) card = initializeAnkiCard();
     if (!card.easeFactor) Object.assign(card, initializeAnkiCard());
+    
     if (quality >= 3) {
         if (card.repetitions === 0) card.interval = 1;
         else if (card.repetitions === 1) card.interval = 6;
         else card.interval = Math.round(card.interval * card.easeFactor);
-        card.repetitions++; card.correctCount++;
+        card.repetitions++; 
+        card.correctCount++;
     } else {
-        card.repetitions = 0; card.interval = 0; card.incorrectCount++;
+        card.repetitions = 0; 
+        card.interval = 0; 
+        card.incorrectCount++;
     }
+    
     card.easeFactor = Math.max(1.3, card.easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)));
+    
     if (quality === 1) card.interval = 0;
     else if (quality === 2) card.interval = Math.round(card.interval * 1.2);
     else if (quality === 4) card.interval = Math.round(card.interval * 1.3);
+    
     card.lastReviewDate = now.toISOString();
     const nextDate = new Date(now);
+    
     if (card.interval === 0) nextDate.setMinutes(nextDate.getMinutes() + 10);
     else nextDate.setDate(nextDate.getDate() + card.interval);
+    
     card.nextReviewDate = nextDate.toISOString();
+    
     if (card.interval === 0) card.cardState = 'learning';
     else if (card.interval < 21) card.cardState = 'review';
     else card.cardState = 'mature';
+    
     return card;
 }
+
 function initializeAnkiCard() {
     return {
-        cardState: 'new', easeFactor: 2.5, interval: 0, repetitions: 0,
-        lastReviewDate: null, nextReviewDate: new Date().toISOString(),
-        correctCount: 0, incorrectCount: 0
+        cardState: 'new', 
+        easeFactor: 2.5, 
+        interval: 0, 
+        repetitions: 0,
+        lastReviewDate: null, 
+        nextReviewDate: new Date().toISOString(),
+        correctCount: 0, 
+        incorrectCount: 0
     };
 }
 
@@ -330,6 +367,7 @@ function generateMasterStudyCycle() {
     // 2. Calcula a prioridade de cada tópico
     let totalPriorityScore = 0;
     const priorityList = [];
+    
     for (const subjectId in exam.subjects) {
         const subject = exam.subjects[subjectId];
         for (const topicId in subject.topics) {
@@ -395,8 +433,14 @@ function generateMasterStudyCycle() {
         let minutesForDay = (user.dailyHours[day] || 0) * 60;
         if (minutesForDay > 0) {
             
+            // Bloco Anki (se houver tempo)
             if (minutesForDay >= ANKI_BLOCK_DURATION_MINUTES) {
-                const ankiBlock = { type: 'anki', name: 'Revisão Anki', duration: ANKI_BLOCK_DURATION_MINUTES };
+                const ankiBlock = { 
+                    type: 'anki', 
+                    name: 'Revisão Anki', 
+                    duration: ANKI_BLOCK_DURATION_MINUTES 
+                };
+                
                 for (const time of times) {
                     const cellKey = `${day.toUpperCase()}_${time}`;
                     if (!newStudyPlan[weekKey][cellKey]) {
@@ -407,6 +451,7 @@ function generateMasterStudyCycle() {
                 minutesForDay -= ANKI_BLOCK_DURATION_MINUTES;
             }
 
+            // Blocos de prática
             let blocksForDay = Math.floor(minutesForDay / BLOCK_DURATION_MINUTES);
             for (const time of times) {
                 if (blocksForDay <= 0) break;
@@ -443,7 +488,8 @@ function calculateConclusionDate(totalWeeklyHours) {
     const user = getCurrentUser();
     const predictionEl = document.getElementById('cyclePrediction');
     if (!user || !user.examId) {
-        predictionEl.textContent = ""; return;
+        if (predictionEl) predictionEl.textContent = ""; 
+        return;
     }
     
     const exam = examDatabase[user.examId];
@@ -453,14 +499,16 @@ function calculateConclusionDate(totalWeeklyHours) {
     }
     
     if (!totalWeeklyHours || totalWeeklyHours === 0) {
-        predictionEl.textContent = "Defina suas horas de estudo para ver a previsão.";
+        if (predictionEl) predictionEl.textContent = "Defina suas horas de estudo para ver a previsão.";
         return;
     }
     
     const totalHoursNeeded = totalTopics * DEFAULT_HOURS_PER_TOPIC;
     const weeksNeeded = Math.ceil(totalHoursNeeded / totalWeeklyHours);
     
-    predictionEl.textContent = `Previsão de Conclusão (1ª passagem): ${weeksNeeded} semanas.`;
+    if (predictionEl) {
+        predictionEl.textContent = `Previsão de Conclusão (1ª passagem): ${weeksNeeded} semanas.`;
+    }
 }
 
 function renderDailyFocusDashboard() {
@@ -494,8 +542,7 @@ function renderDailyFocusDashboard() {
                         <div class="focus-block-header">Bloco de ${time} (${block.duration} min) - REVISÃO ANKI</div>
                         <div class="focus-block-title">Memorização Ativa</div>
                         <div class="focus-block-action"><i>Ação: Revise os cartões de erro/teoria que você criou.</i></div>
-                        ${
-                            dueAnkiCards.length > 0
+                        ${dueAnkiCards.length > 0
                             ? `<button class="btn btn-primary" onclick="startAnkiSession()">⚡ Iniciar Revisão (${dueAnkiCards.length} cartões)</button>`
                             : `<p style="color: var(--text-gray);">✅ Nenhuma revisão Anki pendente!</p>`
                         }
@@ -535,14 +582,18 @@ function savePerformanceLog() {
     const correct = parseInt(document.getElementById('logCorrect').value);
 
     if (!subjectId || !topicId || isNaN(total) || isNaN(correct)) {
-        showToast("Preencha todos os campos corretamente."); return;
+        showToast("Preencha todos os campos corretamente."); 
+        return;
     }
     if (correct > total) {
-        showToast("Acertos não podem ser maiores que o total."); return;
+        showToast("Acertos não podem ser maiores que o total."); 
+        return;
     }
 
     if (!user.performance[subjectId]) user.performance[subjectId] = {};
-    if (!user.performance[subjectId][topicId]) user.performance[subjectId][topicId] = { total: 0, correct: 0 };
+    if (!user.performance[subjectId][topicId]) {
+        user.performance[subjectId][topicId] = { total: 0, correct: 0 };
+    }
 
     user.performance[subjectId][topicId].total += total;
     user.performance[subjectId][topicId].correct += correct;
@@ -553,15 +604,17 @@ function savePerformanceLog() {
     document.getElementById('logPerformanceForm').reset();
     populateLogSubjects();
 }
+
 function saveAnkiCard() {
     const user = getCurrentUser();
-    const subjectId = document.getElementById('addAnkiSubject').value; // ID Corrigido
-    const topicId = document.getElementById('addAnkiTopic').value; // ID Corrigido
-    const front = document.getElementById('cardFront').value;
-    const back = document.getElementById('cardBack').value;
+    const subjectId = document.getElementById('addAnkiSubject').value;
+    const topicId = document.getElementById('addAnkiTopic').value;
+    const front = document.getElementById('cardFront').value.trim();
+    const back = document.getElementById('cardBack').value.trim();
 
     if (!subjectId || !topicId || !front || !back) {
-        showToast("Preencha todos os campos."); return;
+        showToast("Preencha todos os campos."); 
+        return;
     }
 
     const newCard = {
@@ -581,16 +634,17 @@ function saveAnkiCard() {
     document.getElementById('addCardForm').reset();
     populateAddCardSubjects();
 }
-// NOVO (V9): Salva um Erro no Caderno
+
 function saveErrorEntry() {
     const user = getCurrentUser();
     const subjectId = document.getElementById('addErrorSubject').value;
     const topicId = document.getElementById('addErrorTopic').value;
-    const question = document.getElementById('errorQuestion').value;
-    const comment = document.getElementById('errorComment').value;
+    const question = document.getElementById('errorQuestion').value.trim();
+    const comment = document.getElementById('errorComment').value.trim();
 
     if (!subjectId || !topicId || !question || !comment) {
-        showToast("Preencha todos os campos."); return;
+        showToast("Preencha todos os campos."); 
+        return;
     }
 
     const newError = {
@@ -600,7 +654,8 @@ function saveErrorEntry() {
         subjectName: examDatabase[user.examId].subjects[subjectId].name,
         topicName: examDatabase[user.examId].subjects[subjectId].topics[topicId].name,
         question: question,
-        comment: comment
+        comment: comment,
+        dateAdded: new Date().toISOString()
     };
 
     user.errorNotebook.push(newError);
@@ -610,9 +665,8 @@ function saveErrorEntry() {
     populateAddErrorSubjects();
 }
 
-
 // ============================
-// LÓGICA DE REVISÃO ANKI (V7)
+// LÓGICA DE REVISÃO ANKI (Corrigida - Sem recursão)
 // ============================
 function getDueAnkiCards() {
     const user = getCurrentUser();
@@ -623,6 +677,7 @@ function getDueAnkiCards() {
         return new Date(card.anki.nextReviewDate) <= now;
     });
 }
+
 function startAnkiSession() {
     currentAnkiSession = getDueAnkiCards();
     if (currentAnkiSession.length === 0) {
@@ -630,32 +685,54 @@ function startAnkiSession() {
         showPage('dashboard');
         return;
     }
+    
+    // Embaralhar cartões
     currentAnkiSession.sort(() => Math.random() - 0.5);
     currentAnkiIndex = 0;
-    showPage('ankiSessionPage');
+    
+    // Navegar para a página Anki SEM chamar showPage recursivamente
+    document.querySelectorAll('.page').forEach(page => page.classList.add('hidden'));
+    document.getElementById('ankiSessionPage').classList.remove('hidden');
+    
+    // Atualizar menu ativo
+    document.querySelectorAll('.menu-btn').forEach(btn => btn.classList.remove('active'));
+    const activeBtn = document.querySelector('[data-page="anki"]');
+    if (activeBtn) activeBtn.classList.add('active');
+    
+    // Salvar página atual
+    const user = getCurrentUser();
+    if (user) user.session.currentPage = 'anki';
+    
     renderAnkiCard(currentAnkiIndex);
 }
+
 function renderAnkiCard(index) {
-    const card = currentAnkiSession[index];
-    if (!card) {
-        showPage('dashboard'); return;
+    if (index >= currentAnkiSession.length) {
+        showToast("Sessão Anki concluída! 🎉");
+        showPage('dashboard');
+        return;
     }
+    
+    const card = currentAnkiSession[index];
     document.getElementById('ankiCurrent').textContent = index + 1;
     document.getElementById('ankiTotal').textContent = currentAnkiSession.length;
     document.getElementById('ankiTopicName').textContent = `${card.subjectName} > ${card.topicName}`;
     document.getElementById('ankiCardFront').textContent = card.front;
     document.getElementById('ankiCardFront_Back').textContent = card.front;
     document.getElementById('ankiCardBack').textContent = card.back;
+    
     document.getElementById('ankiFrontView').classList.remove('hidden');
     document.getElementById('ankiBackView').classList.add('hidden');
 }
+
 function handleAnkiCardResponse(quality) {
     const card = currentAnkiSession[currentAnkiIndex];
     card.anki = calculateAnkiReview(card.anki, quality);
     saveStateToLocalStorage();
+    
     currentAnkiIndex++;
     if (currentAnkiIndex >= currentAnkiSession.length) {
-        showToast("Sessão Anki concluída!");
+        showToast("Sessão Anki concluída! 🎉");
         showPage('dashboard');
     } else {
         renderAnkiCard(currentAnkiIndex);
@@ -666,6 +743,7 @@ function handleAnkiCardResponse(quality) {
 // PLANO DE ESTUDOS (V8 - Automático)
 // ============================
 let currentWeekOffset = 0;
+
 function getWeekKey(weekOffset = 0) {
     const date = new Date();
     date.setDate(date.getDate() + (weekOffset * 7));
@@ -673,6 +751,7 @@ function getWeekKey(weekOffset = 0) {
     const week = getWeekNumber(date);
     return `${year}-W${week}`;
 }
+
 function getWeekNumber(date) {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
     const dayNum = d.getUTCDay() || 7;
@@ -680,6 +759,7 @@ function getWeekNumber(date) {
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
     return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
+
 function renderStudyPlan() {
     const user = getCurrentUser();
     if (!user) return;
@@ -691,6 +771,7 @@ function renderStudyPlan() {
     const tbody = document.getElementById('planTableBody');
     if (!tbody) return;
     tbody.innerHTML = '';
+    
     const times = ['08:00', '09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'];
     const days = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'DOM'];
     
@@ -703,7 +784,7 @@ function renderStudyPlan() {
         
         days.forEach(day => {
             const cell = document.createElement('td');
-            const cellKey = `${day.toUpperCase()}_${time}`;
+            const cellKey = `${day}_${time}`;
             const block = weekPlanData[cellKey];
             
             if (block) {
@@ -712,13 +793,11 @@ function renderStudyPlan() {
                 if (block.type === 'anki') {
                     blockDiv.classList.add('anki');
                     blockDiv.innerHTML = `<strong>${block.name}</strong> (${block.duration}m)`;
+                    blockDiv.onclick = () => startAnkiSession();
                 } else {
                     blockDiv.innerHTML = `<strong>${block.name}</strong><br><small>${block.topicName}</small>`;
+                    blockDiv.onclick = () => startFocusSession(block.duration, block.name, block.topicName);
                 }
-                blockDiv.onclick = () => {
-                    if (block.type === 'anki') startAnkiSession();
-                    else startFocusSession(block.duration, block.name, block.topicName);
-                };
                 cell.appendChild(blockDiv);
             }
             row.appendChild(cell);
@@ -726,43 +805,61 @@ function renderStudyPlan() {
         tbody.appendChild(row);
     });
 }
-function showSubjectModal() { /* Obsoleto */ }
 
 // ============================
-// NAVEGAÇÃO E RENDERIZAÇÃO DE PÁGINAS (V9)
+// NAVEGAÇÃO E RENDERIZAÇÃO DE PÁGINAS (Corrigida)
 // ============================
 function showPage(pageName) {
+    // Esconder todas as páginas
     document.querySelectorAll('.page').forEach(page => page.classList.add('hidden'));
     
     let pageId = pageName + 'Page';
-    if (pageName === 'anki') pageId = 'ankiSessionPage';
     
-    const page = document.getElementById(pageId);
-    if (page) page.classList.remove('hidden');
+    // Correção especial para página Anki - NÃO chamar startAnkiSession aqui
+    if (pageName === 'anki') {
+        pageId = 'ankiSessionPage';
+        // Iniciar sessão apenas se não houver sessão ativa
+        if (currentAnkiSession.length === 0 || currentAnkiIndex >= currentAnkiSession.length) {
+            startAnkiSession();
+            return; // Importante: sair da função aqui
+        } else {
+            // Se já tem sessão ativa, apenas mostrar a página
+            const page = document.getElementById(pageId);
+            if (page) page.classList.remove('hidden');
+        }
+    } else {
+        // Para outras páginas, comportamento normal
+        const page = document.getElementById(pageId);
+        if (page) page.classList.remove('hidden');
+    }
     
+    // Atualizar menu ativo
     document.querySelectorAll('.menu-btn').forEach(btn => btn.classList.remove('active'));
     const activeBtn = document.querySelector(`[data-page="${pageName}"]`);
     if (activeBtn) activeBtn.classList.add('active');
     
+    // Salvar página atual
     const user = getCurrentUser();
     if (user) user.session.currentPage = pageName;
     
-    // Renderiza conteúdo específico da página
+    // Renderizações específicas de página (exceto Anki)
     if (pageName === 'plano') renderStudyPlan();
     else if (pageName === 'perfil') renderProfileDisplay();
     else if (pageName === 'concurso') renderConcursoPage();
     else if (pageName === 'dashboard') renderDailyFocusDashboard();
     else if (pageName === 'desempenho') populateLogSubjects();
     else if (pageName === 'adicionar') populateAddCardSubjects();
-    else if (pageName === 'adicionarErro') populateAddErrorSubjects(); // NOVO
-    else if (pageName === 'erros') renderErrorNotebookPage(); // ATUALIZADO
-    else if (pageName === 'anki') startAnkiSession();
+    else if (pageName === 'adicionarErro') populateAddErrorSubjects();
+    else if (pageName === 'erros') renderErrorNotebookPage();
 }
+
 function renderConcursoPage() {
     const user = getCurrentUser();
     if (!user) return;
+    
     populateExamSelect();
     
+    // Carregar horas diárias
     const dayKeys = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'];
     dayKeys.forEach(day => {
         const input = document.getElementById(`hours_${day}`);
@@ -779,7 +876,9 @@ function renderConcursoPage() {
         const exam = examDatabase[user.examId];
         const cardCount = (user.ankiCards || []).length;
         const errorCount = (user.errorNotebook || []).length;
-        info.textContent = `Concurso: ${exam.name} | Cartões Anki: ${cardCount} | Erros: ${errorCount}`;
+        if(info) {
+            info.textContent = `Concurso: ${exam.name} | Cartões Anki: ${cardCount} | Erros: ${errorCount}`;
+        }
         
         let html = '';
         for (const subjectId in exam.subjects) {
@@ -802,23 +901,27 @@ function renderConcursoPage() {
         if(predictionEl) predictionEl.textContent = "";
     }
 }
+
 function renderProfileDisplay() {
     const user = getCurrentUser();
     if (!user) return;
+    
     document.getElementById('profileName').textContent = user.name;
     document.getElementById('profileEmail').textContent = user.email;
     document.getElementById('profileCreated').textContent = new Date(user.created).toLocaleDateString('pt-BR');
 }
+
 function populateAllSubjectDropdowns() {
     const user = getCurrentUser();
     if (!user || !user.examId) return;
+    
     const exam = examDatabase[user.examId];
     const selects = [
         { id: 'logSubject', default: '<option value="">Selecione a matéria...</option>', useId: true },
         { id: 'addAnkiSubject', default: '<option value="">Selecione a matéria...</option>', useId: true },
-        { id: 'addErrorSubject', default: '<option value="">Selecione a matéria...</option>', useId: true },
-        { id: 'subjectSelectModal', default: '<option value="">Selecione...</option>', useId: false }
+        { id: 'addErrorSubject', default: '<option value="">Selecione a matéria...</option>', useId: true }
     ];
+    
     selects.forEach(s => {
         const select = document.getElementById(s.id);
         if (select) {
@@ -832,21 +935,27 @@ function populateAllSubjectDropdowns() {
             }
         }
     });
+    
     populateTopics('addAnkiTopic', null);
     populateTopics('logTopic', null);
     populateTopics('addErrorTopic', null);
 }
+
 function populateTopics(selectId, subjectId) {
     const user = getCurrentUser();
     const topicSelect = document.getElementById(selectId);
     if (!topicSelect) return;
+    
     if (!user || !user.examId || !subjectId || !examDatabase[user.examId].subjects[subjectId]) {
         topicSelect.innerHTML = '<option value="">Selecione a matéria primeiro...</option>';
-        topicSelect.disabled = true; return;
+        topicSelect.disabled = true; 
+        return;
     }
+    
     const topics = examDatabase[user.examId].subjects[subjectId].topics;
     topicSelect.innerHTML = '<option value="">Selecione o tópico...</option>';
     topicSelect.disabled = false;
+    
     for (const topicId in topics) {
         const option = document.createElement('option');
         option.value = topicId;
@@ -854,12 +963,15 @@ function populateTopics(selectId, subjectId) {
         topicSelect.appendChild(option);
     }
 }
+
 function populateLogSubjects() { populateAllSubjectDropdowns(); }
 function populateAddCardSubjects() { populateAllSubjectDropdowns(); }
-function populateAddErrorSubjects() { populateAllSubjectDropdowns(); } // NOVO
+function populateAddErrorSubjects() { populateAllSubjectDropdowns(); }
+
 function populateExamSelect() {
     const select = document.getElementById('examSelect');
     if (!select) return;
+    
     select.innerHTML = '<option value="">Selecione...</option>';
     for (const examId in examDatabase) {
         const option = document.createElement('option');
@@ -868,12 +980,18 @@ function populateExamSelect() {
         select.appendChild(option);
     }
 }
+
 function loadExamSubjectsToUser(examId) {
     const user = getCurrentUser();
     if (!user || !examDatabase[examId]) return;
-    if (user.examId && user.examId !== examId && !confirm('Trocar de concurso? Seu progresso e ciclo de estudos serão focados no novo concurso.')) {
-        renderConcursoPage(); return;
+    
+    if (user.examId && user.examId !== examId) {
+        if (!confirm('Trocar de concurso? Seu progresso e ciclo de estudos serão focados no novo concurso.')) {
+            renderConcursoPage(); 
+            return;
+        }
     }
+    
     user.examId = examId;
     user.studyPlan = {};
     user.performance = {};
@@ -891,6 +1009,7 @@ function renderErrorNotebookPage() {
     const user = getCurrentUser();
     const container = document.getElementById('notebookContainer');
     if (!container) return;
+    
     if (!user || !user.errorNotebook || user.errorNotebook.length === 0) {
         container.innerHTML = '<p style="color: var(--text-gray);">Seu caderno de erros está vazio. Adicione erros na aba "➕ Adicionar Erro".</p>';
         return;
@@ -909,17 +1028,35 @@ function renderErrorNotebookPage() {
         html += `<h3 style="margin-top: 16px; margin-bottom: 12px; border-bottom: 2px solid var(--border-gray); padding-bottom: 4px;">${subjectName}</h3>`;
         
         errorsBySubject[subjectName].forEach(error => {
+            const date = new Date(error.dateAdded).toLocaleDateString('pt-BR');
             html += `
                 <div style="background: var(--bg-light); padding: 12px; border-radius: 6px; margin-bottom: 12px; white-space: pre-wrap;">
-                    <p style="font-size: 13px; color: var(--text-gray); font-weight: 500;">${error.topicName}</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <p style="font-size: 13px; color: var(--text-gray); font-weight: 500;">${error.topicName}</p>
+                        <p style="font-size: 12px; color: var(--text-gray);">${date}</p>
+                    </div>
                     <p style="font-weight: 600; margin-bottom: 8px;"><strong>Pergunta:</strong> ${error.question}</p>
                     <p style="font-size: 14px; background: white; padding: 8px; border-radius: 4px; border-left: 3px solid var(--error-red);"><strong>Comentário:</strong> ${error.comment}</p>
+                    <button class="btn btn-danger" style="margin-top: 8px; font-size: 12px;" onclick="deleteErrorEntry('${error.id}')">🗑️ Excluir</button>
                 </div>
             `;
         });
     }
     container.innerHTML = html;
 }
+
+function deleteErrorEntry(errorId) {
+    const user = getCurrentUser();
+    if (!user || !user.errorNotebook) return;
+    
+    if (confirm('Tem certeza que deseja excluir este erro?')) {
+        user.errorNotebook = user.errorNotebook.filter(error => error.id !== errorId);
+        saveStateToLocalStorage();
+        renderErrorNotebookPage();
+        showToast('Erro excluído do caderno!');
+    }
+}
+
 async function handleChangePassword(e) {
     e.preventDefault();
     const user = getCurrentUser();
@@ -930,10 +1067,12 @@ async function handleChangePassword(e) {
     const confirmPass = document.getElementById('confirmNewPassword').value;
 
     if (newPass !== confirmPass) {
-        showToast("A nova senha e a confirmação não coincidem."); return;
+        showToast("A nova senha e a confirmação não coincidem."); 
+        return;
     }
     if (newPass.length < 4) {
-        showToast("A nova senha deve ter pelo menos 4 caracteres."); return;
+        showToast("A nova senha deve ter pelo menos 4 caracteres."); 
+        return;
     }
 
     showLoading();
@@ -941,7 +1080,8 @@ async function handleChangePassword(e) {
     
     if (currentPassHash !== user.passHash) {
         showToast("A senha atual está incorreta.");
-        hideLoading(); return;
+        hideLoading(); 
+        return;
     }
     
     user.passHash = await hashPassword(newPass);
@@ -950,22 +1090,72 @@ async function handleChangePassword(e) {
     showToast("Senha alterada com sucesso!");
     document.getElementById('changePasswordForm').reset();
 }
+
 function inviteFriends() {
-    const message = `Olá! Estou a usar o Aprovação Sem Limites para gerir meus estudos. Para se registar, use o código de convite: ${MASTER_INVITE_CODE}`;
+    const message = `Olá! Estou a usar o Aprovação Sem Limites para gerir meus estudos. Peça-me o código de convite para se registar!`;
     navigator.clipboard.writeText(message).then(() => {
-        showToast("Mensagem de convite copiada!");
-    }, () => {
-        // CORREÇÃO V8.2: Corrigido o erro de sintaxe aqui
-        showToast("Erro ao copiar. O código é: " + MASTER_INVITE_CODE);
+        showToast("Mensagem de convite copiada! Lembre-se de enviar o código.");
+    }).catch(() => {
+        showToast("Erro ao copiar a mensagem.");
     });
 }
 
 // ============================
-// INICIALIZAÇÃO E EVENT LISTENERS (V9)
+// BACKUP & RESTORE
+// ============================
+function exportUserData() {
+    const user = getCurrentUser();
+    if (!user) { 
+        showToast('Nenhum usuário logado!'); 
+        return; 
+    }
+    
+    const backup = { 
+        version: '9.5', 
+        exportDate: new Date().toISOString(), 
+        userData: user 
+    };
+    const dataStr = JSON.stringify(backup, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `backup_aprovacao_${user.email}_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast('Backup do utilizador exportado! 📥');
+}
+
+function importUserData(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const backup = JSON.parse(e.target.result);
+            if (!backup.userData || !backup.version) {
+                throw new Error('Arquivo de backup inválido');
+            }
+            
+            if (confirm('Isso vai sobrescrever seus dados para este utilizador. Continuar?')) {
+                const userData = backup.userData;
+                memoryDB.users[userData.id] = userData;
+                memoryDB.currentUserId = userData.id;
+                saveStateToLocalStorage();
+                initializeApp();
+                showToast('Backup restaurado com sucesso! 📤');
+            }
+        } catch (error) {
+            showToast('Erro ao carregar arquivo: ' + error.message);
+        }
+    };
+    reader.readAsText(file);
+}
+
+// ============================
+// INICIALIZAÇÃO E EVENT LISTENERS
 // ============================
 document.addEventListener('DOMContentLoaded', () => {
     
-    initializeApp(); 
+    initializeApp();
     
     // ----- Login / Registo -----
     document.querySelectorAll('.login-tab').forEach(tab => {
@@ -977,15 +1167,22 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('registerForm').classList.toggle('hidden', tabName !== 'register');
         });
     });
+
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
-        e.preventDefault(); showLoading();
+        e.preventDefault(); 
+        showLoading();
         const email = document.getElementById('loginEmail').value;
         const password = document.getElementById('loginPassword').value;
         const userId = await loginUser(email, password);
-        if (userId) { initializeApp(); showToast('Login realizado com sucesso! 🎉'); }
-        else { showToast('Email ou senha incorretos!'); }
+        if (userId) { 
+            initializeApp(); 
+            showToast('Login realizado com sucesso! 🎉'); 
+        } else { 
+            showToast('Email ou senha incorretos!'); 
+        }
         hideLoading();
     });
+
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const name = document.getElementById('registerName').value;
@@ -994,16 +1191,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const passwordConfirm = document.getElementById('registerPasswordConfirm').value;
         const inviteCode = document.getElementById('registerInviteCode').value;
         
-        if (password !== passwordConfirm) { showToast('As senhas não coincidem!'); return; }
-        for (let uid in memoryDB.users) if (memoryDB.users[uid].email === email) {
-            showToast('Email já registrado!'); return;
+        if (password !== passwordConfirm) { 
+            showToast('As senhas não coincidem!'); 
+            return; 
         }
+        
+        // Verificar se email já existe
+        for (let uid in memoryDB.users) {
+            if (memoryDB.users[uid].email === email) {
+                showToast('Email já registrado!'); 
+                return;
+            }
+        }
+        
         showLoading();
         const inviteCodeHash = await hashPassword(inviteCode);
         if (inviteCodeHash !== MASTER_INVITE_HASH) {
             showToast('Código de Convite inválido!');
-            hideLoading(); return;
+            hideLoading(); 
+            return;
         }
+        
         const userId = await createUser(name, email, password);
         memoryDB.currentUserId = userId;
         saveStateToLocalStorage();
@@ -1011,8 +1219,12 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Conta criada com sucesso! 🎉');
         hideLoading();
     });
+
     document.getElementById('logoutBtn').addEventListener('click', () => {
-        if (confirm('Deseja sair?')) { logoutUser(); window.location.reload(); }
+        if (confirm('Deseja sair?')) { 
+            logoutUser(); 
+            window.location.reload(); 
+        }
     });
     
     // ----- Navegação Principal -----
@@ -1042,15 +1254,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ----- Página "Adicionar Cartão Anki" -----
-    document.getElementById('addAnkiSubject').addEventListener('change', (e) => { // ID Corrigido
-        populateTopics('addAnkiTopic', e.target.value); // ID Corrigido
+    document.getElementById('addAnkiSubject').addEventListener('change', (e) => {
+        populateTopics('addAnkiTopic', e.target.value);
     });
     document.getElementById('addCardForm').addEventListener('submit', (e) => {
         e.preventDefault();
         saveAnkiCard();
     });
     
-    // ----- NOVO (V9): Página "Adicionar Erro" -----
+    // ----- Página "Adicionar Erro" -----
     document.getElementById('addErrorSubject').addEventListener('change', (e) => {
         populateTopics('addErrorTopic', e.target.value);
     });
@@ -1064,26 +1276,27 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('ankiFrontView').classList.add('hidden');
         document.getElementById('ankiBackView').classList.remove('hidden');
     });
+    
     document.getElementById('ankiRatingButtons').addEventListener('click', (e) => {
         const btn = e.target.closest('.anki-btn');
         if (btn) handleAnkiCardResponse(parseInt(btn.dataset.quality));
     });
-
-    // ----- Página "Plano Semanal" (Listeners removidos) -----
     
     // ----- Página "Perfil" -----
     document.getElementById('exportDataBtn').addEventListener('click', exportUserData);
-    document.getElementById('importDataBtn').addEventListener('click', () => document.getElementById('importFileInput').click());
+    document.getElementById('importDataBtn').addEventListener('click', () => {
+        document.getElementById('importFileInput').click();
+    });
     document.getElementById('importFileInput').addEventListener('change', (e) => {
         if (e.target.files[0]) importUserData(e.target.files[0]);
     });
     document.getElementById('changePasswordForm').addEventListener('submit', handleChangePassword);
     document.getElementById('inviteBtn').addEventListener('click', inviteFriends);
 
-}); // <-- FIM DO 'DOMContentLoaded'
+});
 
 /**
- * Função de inicialização principal (V9)
+ * Função de inicialização principal
  */
 function initializeApp() {
     showLoading();
@@ -1107,6 +1320,11 @@ function initializeApp() {
         const lastPage = user.session.currentPage || 'dashboard';
         showPage(lastPage);
         updateTimerDisplay();
+        
+        // Iniciar timer se estava rodando
+        if (user.session.lastTimerStartTime) {
+            startTimer();
+        }
     } else {
         // Ecrã de login
         document.getElementById('loginScreen').classList.remove('hidden');
